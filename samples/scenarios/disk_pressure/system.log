@@ -1,0 +1,12 @@
+Nov 25 12:17:15 worker-node-03 systemd[1]: INFO host=worker-node-03 Periodic journal vacuum started
+Nov 25 12:17:40 worker-node-03 containerd[1420]: WARN host=worker-node-03 OverlayFS snapshot usage at 93% on /var/lib/containerd
+Nov 25 12:18:02 worker-node-03 kubelet[1842]: WARN host=worker-node-03 Eviction manager detected availablefs=4.1% on /var/lib/containerd (threshold 10%)
+Nov 25 12:18:15 worker-node-03 node_exporter[910]: WARN host=worker-node-03 filesystem=/var/lib/containerd avail_bytes=2147483648 used_pct=97.8
+Nov 25 12:18:30 worker-node-03 containerd[1420]: ERROR host=worker-node-03 Failed to unpack image layer sha256:9b21f8: write /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs: No space left on device
+Nov 25 12:18:45 worker-node-03 kernel: ERROR host=worker-node-03 EXT4-fs warning (device nvme0n1p2): ext4_da_write_begin: No space left on device on /var/lib/containerd
+Nov 25 12:19:00 worker-node-03 kubelet[1842]: WARN host=worker-node-03 Node worker-node-03 condition DiskPressure changed to True
+Nov 25 12:19:12 worker-node-03 kubelet[1842]: ERROR host=worker-node-03 ImageGCFailed: wanted to free 12884901888 bytes, but only freed 1048576000 bytes under /var/lib/containerd
+Nov 25 12:19:24 worker-node-03 journald[512]: ERROR host=worker-node-03 Failed to rotate /var/log/pods/production_analytics-worker: No space left on device
+Nov 25 12:19:38 worker-node-03 kubelet[1842]: CRITICAL host=worker-node-03 DiskPressure critical on worker-node-03; pod scheduling tainted and ephemereal-storage evictions queued
+Nov 25 12:19:50 worker-node-03 containerd[1420]: ERROR host=worker-node-03 Orphaned image layers consuming 64.2GiB under /var/lib/containerd/tmpmounts
+Nov 25 12:20:05 worker-node-03 kubelet[1842]: WARN host=worker-node-03 Pod eviction triggered for best-effort workload due to DiskPressure

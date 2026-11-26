@@ -1,0 +1,41 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "NodeFilesystemAlmostOutOfSpace",
+          "severity": "critical",
+          "service": "storage-node",
+          "node": "worker-node-03",
+          "instance": "worker-node-03.prod.internal:9100",
+          "mountpoint": "/var/lib/containerd"
+        },
+        "annotations": {
+          "summary": "Filesystem /var/lib/containerd on worker-node-03 has <3% space remaining",
+          "description": "Root/containerd volume on worker-node-03.prod.internal is 97.8% full and returning ENOSPC errors."
+        },
+        "state": "firing",
+        "activeAt": "2026-11-25T12:18:15Z",
+        "value": "97.8"
+      },
+      {
+        "labels": {
+          "alertname": "KubeNodeDiskPressure",
+          "severity": "warning",
+          "service": "storage-node",
+          "node": "worker-node-03",
+          "instance": "worker-node-03.prod.internal:9100",
+          "condition": "DiskPressure"
+        },
+        "annotations": {
+          "summary": "Node worker-node-03 reporting KubeNodeDiskPressure condition",
+          "description": "Kubelet marked worker-node-03 under DiskPressure and started pod image garbage collection."
+        },
+        "state": "firing",
+        "activeAt": "2026-11-25T12:19:00Z",
+        "value": "1"
+      }
+    ]
+  }
+}

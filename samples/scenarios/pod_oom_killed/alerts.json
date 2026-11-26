@@ -1,0 +1,45 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "KubePodOOMKilled",
+          "severity": "critical",
+          "service": "checkout-api",
+          "namespace": "production",
+          "pod": "checkout-api-7d9f8c6b5-x4k2m",
+          "container": "checkout-api",
+          "node": "worker-node-01",
+          "instance": "10.42.3.18:8080"
+        },
+        "annotations": {
+          "summary": "Pod checkout-api-7d9f8c6b5-x4k2m was OOMKilled (exit code 137)",
+          "description": "Container checkout-api in namespace production exceeded its 512Mi memory limit and was terminated by the kernel OOM killer."
+        },
+        "state": "firing",
+        "activeAt": "2026-11-25T10:15:42Z",
+        "value": "1"
+      },
+      {
+        "labels": {
+          "alertname": "KubePodCrashLoopBackOff",
+          "severity": "warning",
+          "service": "checkout-api",
+          "namespace": "production",
+          "pod": "checkout-api-7d9f8c6b5-x4k2m",
+          "container": "checkout-api",
+          "node": "worker-node-01",
+          "instance": "10.42.3.18:8080"
+        },
+        "annotations": {
+          "summary": "Pod checkout-api-7d9f8c6b5-x4k2m is in CrashLoopBackOff",
+          "description": "Pod checkout-api-7d9f8c6b5-x4k2m has restarted 4 times in the last 5 minutes after OOMKilled terminations."
+        },
+        "state": "firing",
+        "activeAt": "2026-11-25T10:16:30Z",
+        "value": "4"
+      }
+    ]
+  }
+}

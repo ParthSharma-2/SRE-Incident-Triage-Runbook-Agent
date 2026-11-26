@@ -1,0 +1,24 @@
+[
+  {
+    "labels": {
+      "alertname": "TlsCertificateExpiringSoon",
+      "severity": "warning",
+      "service": "ingress-gateway",
+      "namespace": "ingress-nginx",
+      "pod": "ingress-nginx-controller-5f7d8b4c9-m2n8v",
+      "instance": "10.42.1.12:8443",
+      "domain": "api.prod.example.com"
+    },
+    "annotations": {
+      "summary": "TLS certificate for api.prod.example.com expires in 42 hours",
+      "description": "cert-manager ACME HTTP-01 renewal for secret api-prod-tls is failing with HTTP 403 challenge responses."
+    },
+    "startsAt": "2026-11-25T13:05:00Z",
+    "updatedAt": "2026-11-25T13:07:30Z",
+    "status": {
+      "state": "active",
+      "inhibitedBy": [],
+      "silencedBy": []
+    }
+  }
+]

@@ -1,0 +1,65 @@
+runbook_id: host_disk_pressure
+title: Node Disk Pressure & Containerd Filesystem Exhaustion
+description: Mitigate KubeNodeDiskPressure and ENOSPC errors on {mountpoint} by cordoning the node, pruning orphaned containerd artifacts, and vacuuming journals.
+match_alertnames:
+  - NodeFilesystemAlmostOutOfSpace
+  - KubeNodeDiskPressure
+match_keywords:
+  - diskpressure
+  - no space left on device
+  - enospc
+  - /var/lib/containerd
+  - imagegcfailed
+  - orphaned image layers
+  - overlayfs
+  - almostoutofspace
+severity_hint: critical
+steps:
+  - step_id: disk-inspect-filesystem
+    title: Inspect filesystem utilization and top consumers
+    description: Check df usage and top subdirectories under {mountpoint} and /var/log/pods on node {node}.
+    risk_level: low
+    command_template: "ssh {node} \"df -h {mountpoint} && du -sh {mountpoint}/* /var/log/pods | sort -rh | head -n 10\""
+    target_resource_template: "node/{node}"
+    expected_effect: Confirms exact free bytes on {mountpoint} and identifies orphaned containerd layers or unrotated logs.
+    diff_template: ""
+    preconditions:
+      - "Node {node} is reachable via SSH/admin bastion"
+    verification_hint: "Identify >= 10% reclaimable space under {mountpoint}/tmpmounts or /var/log."
+    simulated_stdout_template: "{mountpoint}: 97.8% used (2.0GiB avail); 64.2GiB in {mountpoint}/tmpmounts"
+
+  - step_id: disk-cordon-node
+    title: Cordon node to prevent new pod scheduling
+    description: Mark {node} unschedulable while reclaiming disk space to stop additional image pulls and evictions.
+    risk_level: medium
+    command_template: "kubectl cordon {node}"
+    target_resource_template: "node/{node}"
+    expected_effect: Sets spec.unschedulable=true on {node} without disrupting running pods.
+    diff_template: |
+      --- node/{node}
+      +++ node/{node}
+       spec:
+      -  unschedulable: false
+      +  unschedulable: true
+    preconditions:
+      - "Cluster has healthy capacity on peer worker nodes"
+    verification_hint: "kubectl get node {node} shows Ready,SchedulingDisabled."
+    simulated_stdout_template: "node/{node} cordoned (dry-run)"
+
+  - step_id: disk-prune-containerd-and-journal
+    title: Prune unused containerd images and vacuum systemd journal
+    description: Reclaim orphaned containerd layers under {mountpoint} and cap journald logs on {node}, then verify DiskPressure clears before uncordoning.
+    risk_level: high
+    command_template: "ssh {node} \"crictl rmi --prune && journalctl --vacuum-size=500M\" && kubectl uncordon {node}"
+    target_resource_template: "node/{node}"
+    expected_effect: Frees orphaned image layers and rotated logs, dropping {mountpoint} usage below 85% and clearing DiskPressure.
+    diff_template: |
+      --- host:{node} {mountpoint}
+      +++ host:{node} {mountpoint}
+      -  used_pct: 97.8% (DiskPressure=True)
+      +  used_pct: 61.4% (DiskPressure=False)
+    preconditions:
+      - "Node {node} is cordoned"
+      - "Only unused/orphaned images are targeted by crictl rmi --prune"
+    verification_hint: "Confirm KubeNodeDiskPressure clears and kubectl get node {node} shows DiskPressure=False."
+    simulated_stdout_template: "Reclaimed 64.2GiB from containerd + 1.2GiB journal; node/{node} uncordoned"

@@ -1,0 +1,68 @@
+runbook_id: k8s_oom_killed
+title: Kubernetes Pod OOMKilled & CrashLoopBackOff Remediation
+description: Diagnose cgroup memory exhaustion (exit code 137 / OOMKilled) and safely raise memory limits or stabilize pod restarts.
+match_alertnames:
+  - KubePodOOMKilled
+  - KubePodCrashLoopBackOff
+match_keywords:
+  - oomkilled
+  - exit code 137
+  - oom-killer
+  - memory limit
+  - crashloopbackoff
+  - cgroup
+  - rss=
+severity_hint: critical
+steps:
+  - step_id: oom-inspect-pod-events
+    title: Inspect pod termination state and memory metrics
+    description: Inspect previous container exit status, OOMKilled reason, and live container memory usage in namespace {namespace}.
+    risk_level: low
+    command_template: "kubectl describe pod {pod} -n {namespace} && kubectl top pod {pod} -n {namespace} --containers"
+    target_resource_template: "pod/{pod}"
+    expected_effect: Confirm exit code 137 (OOMKilled) and measure peak RSS against current 512Mi cgroup ceiling without mutating workloads.
+    diff_template: ""
+    preconditions:
+      - "Pod {pod} exists in namespace {namespace}"
+      - "Metrics server is reachable for kubectl top"
+    verification_hint: "Confirm Last State reports Reason: OOMKilled and Exit Code: 137."
+    simulated_stdout_template: "Pod {pod} (ns={namespace}): Last State=Terminated (Reason=OOMKilled, ExitCode=137), Memory=509Mi/512Mi"
+
+  - step_id: oom-increase-memory-limit
+    title: Increase deployment memory request and limit
+    description: Raise container {container} memory limit on deployment/{service} from 512Mi to 1024Mi to prevent kernel OOM kills under peak cache hydration.
+    risk_level: medium
+    command_template: "kubectl set resources deployment/{service} -n {namespace} -c={container} --requests=memory=512Mi --limits=memory=1024Mi"
+    target_resource_template: "deployment/{service}"
+    expected_effect: Raises cgroup memory ceiling to 1024Mi and triggers a rolling update of {service} pods.
+    diff_template: |
+      --- deployment/{service} (namespace={namespace})
+      +++ deployment/{service} (namespace={namespace})
+       resources:
+         requests:
+      -    memory: 256Mi
+      +    memory: 512Mi
+         limits:
+      -    memory: 512Mi
+      +    memory: 1024Mi
+    preconditions:
+      - "Deployment {service} exists in namespace {namespace}"
+      - "Node {node} has >= 512Mi allocatable memory headroom"
+    verification_hint: "kubectl rollout status deployment/{service} -n {namespace} completes and restart count stays at 0."
+    simulated_stdout_template: "deployment.apps/{service} resource requirements updated (dry-run)"
+
+  - step_id: oom-rollout-restart-verify
+    title: Trigger controlled rollout restart and verify readiness
+    description: Perform a controlled rollout restart if stale pods remain in CrashLoopBackOff after resource update.
+    risk_level: medium
+    command_template: "kubectl rollout restart deployment/{service} -n {namespace} && kubectl rollout status deployment/{service} -n {namespace} --timeout=120s"
+    target_resource_template: "deployment/{service}"
+    expected_effect: Replaces CrashLoopBackOff pod {pod} with a healthy Ready replica.
+    diff_template: |
+      --- deployment/{service} spec.template.metadata.annotations
+      +++ deployment/{service} spec.template.metadata.annotations
+      +  kubectl.kubernetes.io/restartedAt: "<dry-run-timestamp>"
+    preconditions:
+      - "Updated memory limit (1024Mi) is applied on deployment/{service}"
+    verification_hint: "Confirm readiness probe on {instance} returns HTTP 200 and KubePodCrashLoopBackOff resolves."
+    simulated_stdout_template: "deployment.apps/{service} restarted; 1/1 replicas Ready"

@@ -1,0 +1,44 @@
+[
+  {
+    "labels": {
+      "alertname": "ApiHigh5xxErrorRate",
+      "severity": "critical",
+      "service": "orders-service",
+      "namespace": "production",
+      "pod": "orders-service-6c4d5b9f8-q9z1p",
+      "instance": "10.42.7.44:8080"
+    },
+    "annotations": {
+      "summary": "orders-service HTTP 5xx error rate exceeded 35% for 3m",
+      "description": "Upstream API responses for POST /v1/orders are returning HTTP 503 due to database connection acquisition timeouts."
+    },
+    "startsAt": "2026-11-25T11:02:15Z",
+    "updatedAt": "2026-11-25T11:03:45Z",
+    "status": {
+      "state": "active",
+      "inhibitedBy": [],
+      "silencedBy": []
+    }
+  },
+  {
+    "labels": {
+      "alertname": "DatabaseConnectionPoolExhausted",
+      "severity": "critical",
+      "service": "orders-service",
+      "namespace": "production",
+      "pod": "orders-service-6c4d5b9f8-q9z1p",
+      "instance": "10.42.7.44:8080"
+    },
+    "annotations": {
+      "summary": "PostgreSQL connection pool exhausted on orders-service (50/50 active)",
+      "description": "All 50 database connections in the orders-service pool are checked out with 184 queued waiters."
+    },
+    "startsAt": "2026-11-25T11:02:02Z",
+    "updatedAt": "2026-11-25T11:03:45Z",
+    "status": {
+      "state": "active",
+      "inhibitedBy": [],
+      "silencedBy": []
+    }
+  }
+]

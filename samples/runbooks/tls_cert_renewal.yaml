@@ -1,0 +1,64 @@
+runbook_id: tls_cert_renewal
+title: Ingress TLS Certificate Expiring & ACME Challenge Remediation
+description: Diagnose cert-manager renewal failures (HTTP 403 on ACME HTTP-01 challenge) and renew TLS certificate for {domain} before expiry.
+match_alertnames:
+  - TlsCertificateExpiringSoon
+match_keywords:
+  - tls certificate
+  - acme
+  - http-01
+  - cert-manager
+  - .well-known/acme-challenge
+  - notafter
+  - expiring
+  - tls handshake
+severity_hint: warning
+steps:
+  - step_id: tls-inspect-cert-manager
+    title: Inspect cert-manager Certificate, Order, and Challenge status
+    description: Inspect certificate expiry, Order state, and failed HTTP-01 Challenge details in namespace {namespace} for {domain}.
+    risk_level: low
+    command_template: "kubectl describe certificate,order,challenge -n {namespace}"
+    target_resource_template: "namespace/{namespace}"
+    expected_effect: Surfaces exact ACME Order/Challenge failure reason without modifying ingress routing.
+    diff_template: ""
+    preconditions:
+      - "cert-manager CRDs exist in namespace {namespace}"
+    verification_hint: "Confirm Challenge failed on /.well-known/acme-challenge/ with HTTP 403."
+    simulated_stdout_template: "Certificate api-prod-tls ({domain}): Ready=False, Order=errored (HTTP-01 403)"
+
+  - step_id: tls-switch-dns01-issuer
+    title: Switch ingress issuer to DNS-01 solver to bypass HTTP-01 WAF block
+    description: Annotate ingress in namespace {namespace} to use letsencrypt-prod-dns01 ClusterIssuer so renewal succeeds without WAF HTTP 403 interference.
+    risk_level: medium
+    command_template: "kubectl annotate ingress -n {namespace} --all cert-manager.io/cluster-issuer=letsencrypt-prod-dns01 --overwrite"
+    target_resource_template: "ingress/{namespace}"
+    expected_effect: Switches ACME challenge validation for {domain} from blocked HTTP-01 to DNS-01.
+    diff_template: |
+      --- ingress (namespace={namespace}, domain={domain})
+      +++ ingress (namespace={namespace}, domain={domain})
+       metadata:
+         annotations:
+      -    cert-manager.io/cluster-issuer: letsencrypt-prod
+      +    cert-manager.io/cluster-issuer: letsencrypt-prod-dns01
+    preconditions:
+      - "ClusterIssuer letsencrypt-prod-dns01 is configured with DNS provider credentials"
+    verification_hint: "Confirm new DNS-01 Challenge transitions to valid."
+    simulated_stdout_template: "ingress.networking.k8s.io annotated with letsencrypt-prod-dns01 (dry-run)"
+
+  - step_id: tls-trigger-renewal-and-verify
+    title: Trigger certificate renewal and verify leaf notAfter
+    description: Force cert-manager renewal for secrets in namespace {namespace} and verify the served TLS certificate validity for {domain}.
+    risk_level: medium
+    command_template: "kubectl cert-manager renew -n {namespace} --all && openssl s_client -connect {instance} -servername {domain} </dev/null 2>/dev/null | openssl x509 -noout -dates"
+    target_resource_template: "secret/{namespace}/api-prod-tls"
+    expected_effect: Issues fresh 90-day TLS certificate for {domain} and reloads ingress-nginx listener.
+    diff_template: |
+      --- secret/{namespace}/api-prod-tls
+      +++ secret/{namespace}/api-prod-tls
+      -  notAfter: <expiring-within-48h>
+      +  notAfter: <renewed-+90d>
+    preconditions:
+      - "ACME solver (DNS-01 or unblocked HTTP-01) is healthy"
+    verification_hint: "Verify TlsCertificateExpiringSoon alert clears and notAfter is > 60 days ahead."
+    simulated_stdout_template: "Renewed certificate for {domain}; notAfter=+90d"

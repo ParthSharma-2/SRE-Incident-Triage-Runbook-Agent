@@ -1,0 +1,67 @@
+runbook_id: api_db_pool_exhaustion
+title: API 5xx Burst & PostgreSQL Connection Pool Exhaustion
+description: Diagnose HTTP 503 / TimeoutError spikes caused by saturated DB connection pools and blocking PostgreSQL transactions.
+match_alertnames:
+  - DatabaseConnectionPoolExhausted
+  - ApiHigh5xxErrorRate
+match_keywords:
+  - connection pool
+  - pool exhausted
+  - "503"
+  - timeouterror
+  - db_pool_waiters
+  - row lock
+  - long-running transaction
+  - 5xx
+severity_hint: critical
+steps:
+  - step_id: dbpool-inspect-pg-activity
+    title: Inspect active PostgreSQL sessions and lock waits
+    description: Query pg_stat_activity on {db_host} to identify long-running transactions holding locks and exhausting the {service} pool.
+    risk_level: low
+    command_template: "kubectl exec -n {namespace} {pod} -- psql -h {db_host} -c \"SELECT pid, state, wait_event, now() - xact_start AS duration, left(query, 80) FROM pg_stat_activity WHERE state != 'idle' ORDER BY duration DESC;\""
+    target_resource_template: "postgres/{db_host}"
+    expected_effect: Lists active queries and blocking lock holders without terminating connections.
+    diff_template: ""
+    preconditions:
+      - "Pod {pod} in namespace {namespace} is Running"
+      - "Database host {db_host} is reachable from {namespace}"
+    verification_hint: "Identify PIDs in active or idle-in-transaction state exceeding 10s."
+    simulated_stdout_template: "pid=41892 state=active wait_event=Lock duration=15.12s query='UPDATE orders_items ...'"
+
+  - step_id: dbpool-tune-pool-timeouts
+    title: Expand DB pool size and enforce statement/acquire timeouts
+    description: Increase DB_POOL_MAX from 50 to 80 and cap DB_STATEMENT_TIMEOUT_MS on deployment/{service} to prevent waiter pile-ups.
+    risk_level: medium
+    command_template: "kubectl set env deployment/{service} -n {namespace} DB_POOL_MAX=80 DB_POOL_ACQUIRE_TIMEOUT_MS=2500 DB_STATEMENT_TIMEOUT_MS=5000"
+    target_resource_template: "deployment/{service}"
+    expected_effect: Raises connection pool capacity and bounds slow query lock duration so /readyz recovers.
+    diff_template: |
+      --- deployment/{service} env (namespace={namespace})
+      +++ deployment/{service} env (namespace={namespace})
+      -  DB_POOL_MAX=50
+      +  DB_POOL_MAX=80
+      +  DB_POOL_ACQUIRE_TIMEOUT_MS=2500
+      +  DB_STATEMENT_TIMEOUT_MS=5000
+    preconditions:
+      - "PostgreSQL max_connections on {db_host} supports increased pool ceiling"
+    verification_hint: "Confirm db_pool_waiters drops to 0 and HTTP 5xx rate returns below 1%."
+    simulated_stdout_template: "deployment.apps/{service} env updated (dry-run)"
+
+  - step_id: dbpool-terminate-blocking-tx
+    title: Terminate blocking long-running PostgreSQL transactions
+    description: Terminate backend sessions on {db_host} holding row locks for more than 10 seconds to immediately unblock queued requests.
+    risk_level: high
+    command_template: "kubectl exec -n {namespace} {pod} -- psql -h {db_host} -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'active' AND now() - xact_start > interval '10 seconds';\""
+    target_resource_template: "postgres/{db_host}"
+    expected_effect: Releases row locks on orders_items and frees checked-out connections in the {service} pool.
+    diff_template: |
+      --- pg_stat_activity ({db_host})
+      +++ pg_stat_activity ({db_host})
+      -  pid=41892 active >10s (holding lock on orders_items)
+      +  pid=41892 terminated via pg_terminate_backend
+    preconditions:
+      - "Diagnostic inspection confirmed non-critical batch/stuck query PID"
+      - "Application retries failed idempotent transactions safely"
+    verification_hint: "Check {service} /readyz returns 200 OK and DatabaseConnectionPoolExhausted clears."
+    simulated_stdout_template: "pg_terminate_backend: true (1 blocking backend terminated)"
