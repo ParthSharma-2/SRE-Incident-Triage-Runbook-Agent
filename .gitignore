@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments & editors
+.venv/
+venv/
+ENV/
+.vscode/
+.idea/
+
+# Runtime & local secrets
+.env
+.env.local
+audit_log.jsonl
+*.jsonl.tmp
+.agents/
