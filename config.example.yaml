@@ -1,0 +1,19 @@
+llm:
+  provider: ollama
+  base_url: http://localhost:11434
+  model: llama3.1:8b
+  # api_key: local-dev-token
+  timeout_seconds: 30.0
+  allow_fallback: true
+
+ingestion:
+  # prometheus_url: http://localhost:9090/api/v1/alerts
+  alert_api_type: auto
+  # log_file: ./app.log
+  # tail_lines: 500
+  include_resolved: false
+
+audit:
+  audit_log_path: ./audit_log.jsonl
+
+operator: sre-operator
